@@ -12,6 +12,17 @@
       "recommended": true
     }
   },
+  "overrides": [
+    {
+      "include": ["apps/**/src/index.ts", "apps/**/src/index.tsx"],
+      "linter": {
+        "rules": {
+          "suspicious": { "noConsole": "off" },
+          "style": { "noMagicNumbers": "off" }
+        }
+      }
+    }
+  ],
   "javascript": {
     "formatter": {
       "semicolons": "asNeeded"

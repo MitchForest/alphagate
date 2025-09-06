@@ -4,7 +4,7 @@ export type GuardrailResult = {
   safetyFlags?: string[]
 }
 
-export async function runGuardrails(_input: unknown): Promise<GuardrailResult> {
+export function runGuardrails(_input: unknown): Promise<GuardrailResult> {
   // TODO: call Presidio / Llama Guard services
-  return { piiRedacted: false, safetyFlags: [] }
+  return Promise.resolve({ piiRedacted: false, safetyFlags: [] })
 }
