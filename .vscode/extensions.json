@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "oven-sh.bun-vscode",
+    "biomejs.biome",
+    "esbenp.prettier-vscode",
+    "bradlc.vscode-tailwindcss",
+    "github.vscode-github-actions"
+  ]
+}
+

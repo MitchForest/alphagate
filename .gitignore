@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Bun
+bun.lockb
+
+# Build outputs
+dist/
+build/
+.turbo/
+
+# Testing/coverage
+coverage/
+
+# Env/config
+.env
+.env.*.local
+.DS_Store
+
+# IDE
+.idea/
+.vscode/*.log
+
+# Docs
+.docs/
+
