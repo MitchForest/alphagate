@@ -21,6 +21,4 @@ coverage/
 .idea/
 .vscode/*.log
 
-# Docs
-.docs/
-
+# Docs (track .docs for planning)
