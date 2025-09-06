@@ -14,5 +14,4 @@ app.get("/", async (_c) => {
 const DEFAULT_DASHBOARD_PORT = 3000
 const port = Number(process.env.DASHBOARD_PORT ?? DEFAULT_DASHBOARD_PORT)
 serve({ fetch: app.fetch, port })
-/* biome-ignore lint/suspicious/noConsole: server startup log */
 console.log(`[dashboard] listening on http://localhost:${port}`)

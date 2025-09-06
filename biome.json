@@ -14,7 +14,7 @@
   },
   "overrides": [
     {
-      "include": ["apps/**/src/index.ts", "apps/**/src/index.tsx"],
+      "includes": ["apps/**/src/index.ts", "apps/**/src/index.tsx"],
       "linter": {
         "rules": {
           "suspicious": { "noConsole": "off" },
