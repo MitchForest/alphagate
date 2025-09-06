@@ -8,4 +8,3 @@ export async function runGuardrails(_input: unknown): Promise<GuardrailResult> {
   // TODO: call Presidio / Llama Guard services
   return { piiRedacted: false, safetyFlags: [] }
 }
-

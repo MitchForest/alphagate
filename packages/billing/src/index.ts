@@ -10,6 +10,5 @@ export type CostTable = {
 export function computeCost(tokensIn: number, tokensOut: number, table: CostTable): number {
   const inputCost = (tokensIn / 1000) * table.inputPer1k
   const outputCost = (tokensOut / 1000) * table.outputPer1k
-  return (inputCost + outputCost) * (1 + table.marginBps / 10000)
+  return (inputCost + outputCost) * (1 + table.marginBps / 10_000)
 }
-

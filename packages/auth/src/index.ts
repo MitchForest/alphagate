@@ -7,4 +7,3 @@ export type AuthUser = {
 export function getCurrentUser(): AuthUser | null {
   return null
 }
-
