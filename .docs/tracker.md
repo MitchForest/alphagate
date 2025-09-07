@@ -115,21 +115,33 @@ Acceptance criteria
 
 Goal: A developer can sign up/sign in, create and publish an endpoint (workflow/app) with policies, and another developer can sign up/sign in, install it, get an API key, and call it via the OpenAI Responses interface. Prioritize Screentime (vision-screencast-evaluator) using Qwen-VL on Alpha Gate pods (RunPod/vLLM via Portkey OSS gateway).
 
+Execution Order (2-week MVP sprint)
+1) Contracts: Admin DTOs + OpenAI Responses Zod; generate typed client for Console.
+2) Data: Kysely migrations for orgs/users/memberships/api_keys/endpoints/endpoint_versions/endpoint_models/policies/audit_log; seed defaults.
+3) Main app (minimal internal/admin): `/internal/auth-key`, `/internal/endpoint-config`; `/admin/keys` (create/list) and `/admin/endpoints` (create/list/publish) minimal.
+4) Edge auth + resolve: validate API key, resolve endpoint config, map to provider, proxy to Portkey, unify errors.
+5) Edge SSE keep-alive: inject comments every ~10–20s while streaming.
+6) Edge quotas (skeleton): DO counters per (org,key,endpoint); enforce 429 once wired; behind flag.
+7) Console v0: API Keys page (create/copy), Endpoints list/create (identity/routing/schema/policies minimal), Publish & Install flows.
+8) Screentime preset: `vision-screencast-evaluator` template with schema + routing to Qwen‑VL.
+9) Deploy + smoke: wrangler dev → CF; main-app local; non-stream + stream e2e scripts; fix.
+10) A11y & docs: Button type defaults; Next metadata; README + plan refresh done.
+
 Foundations
-- [x] Route: `/v1/responses` (OpenAI-compatible) on edge (Hono @ CF Workers).
-- [ ] Request/response types in `packages/contracts` aligned with OpenAI Responses (for Admin API + UI typing).
-- [ ] HMAC API key auth: prefix lookup + `secret_hash` compare; map to (org, key) in main DB.
-- [ ] Config fetch + cache: edge fetches endpoint config from main app; KV cache key `org:endpoint:version` with TTL; invalidate on publish.
+- [x] Route: `/v1/responses` on edge (Hono @ CF Workers) wired to Portkey.
+- [x] Request/response types in `packages/contracts` aligned with OpenAI Responses (for Admin API + UI typing).
+- [x] HMAC API key auth: prefix lookup + `secret_hash` compare; map to (org, key) in main DB (`/internal/auth-key`).
+- [x] Config fetch: edge fetches endpoint config from main app; [ ] KV cache key `org:endpoint:version` with TTL; invalidate on publish.
 
 Quota & SSE
 - [ ] Durable Object counters per (org, key, endpoint) with TTL windows.
 - [ ] Rolling windows: hour/day/month; exceed behavior → 429 or soft-limit flag.
-- [ ] Keep-alive SSE: send comment lines `:\n` every 10–20s during provider streams.
+- [x] Keep-alive SSE: send comment lines `:\n` every 10–20s during provider streams.
 
 Routing
 - [x] Edge proxy wired to Portkey OSS gateway (env: `PORTKEY_GATEWAY_URL`, `PORTKEY_ORG_TOKEN`).
-- [ ] Endpoint config mapping: model: "{endpointName}" → provider target (e.g., `qwen-vl` on RunPod/vLLM) with failover/policies.
-- [ ] Consistent error mapping `{ code, message, details }`.
+- [x] Endpoint config mapping: model: "{endpointName}" → provider target (e.g., `qwen-vl` on RunPod/vLLM) with failover/policies.
+- [x] Consistent error mapping `{ code, message, details }`.
 - [ ] (Defer) Emit `usage_event` (queue/ingest) — not required for MVP.
 
 Config & deploy
@@ -145,7 +157,7 @@ Auth & Tenancy (Better Auth + Supabase/Kysely)
 - [ ] Session cookies configured from env (`AUTH_URL`, `AUTH_SECRET`, secure flags in prod).
 - [ ] Tenancy bootstrap: on first signup create a personal org; store user/org/role.
 
-Console (Dashboard) — Endpoint Studio
+Console (Dashboard) — Framework: Next.js 15 (App Router)
 - [ ] Endpoints page: list + create/edit wizard (Identity, Routing, Policies, Quotas, Structured Output JSON schema, Prompt template, Test harness).
 - [ ] API Keys page: create/revoke/rotate; copy snippets.
 - [ ] Organization page: members/roles (basic), org settings (grade band defaults, retention).
@@ -155,11 +167,12 @@ Console (Dashboard) — Endpoint Studio
 
 Admin API (Main App, Hono)
 - [ ] `/orgs`, `/users` (authn/authz), `/endpoints` (CRUD + publish), `/keys` (CRUD), `/policies` (CRUD).
-- [ ] `/internal/endpoint-config` (edge fetch): resolve (org, endpointName) → config JSON + version.
+- [x] `/internal/endpoint-config` (edge fetch): resolve (org, endpointName) → config JSON + version.
+- [x] `/internal/auth-key` (edge fetch): resolve API key → (org_id, api_key_id, scopes).
 - [ ] BYOK store (encrypted in DB; optional for MVP if using pooled RunPod token).
 
 Data Model & Migrations (MVP scope)
-- [ ] Tables & indexes (Kysely migrations): `organizations`, `users`, `memberships`, `api_keys`, `endpoints`, `endpoint_versions`, `endpoint_models`, `policies`, `audit_log`.
+- [x] Tables & indexes (Kysely migrations): `organizations`, `users`, `memberships`, `api_keys`, `endpoints`, `endpoint_versions`, `policies`, `audit_log`.
 - [ ] Seed: create default policy presets; create Screentime template endpoint.
 
 Screentime (Qwen-VL on Alpha Gate pods)
@@ -331,3 +344,79 @@ CI skeleton (workflows/ci.yml) — steps
 - oven-sh/setup-bun@v1
 - bun install
 - bun x turbo run lint typecheck test build --cache-dir=.turbo
+
+---
+
+## Handoff to Next Agent — MVP E2E Snapshot (Sep 2025)
+
+Context
+- Goal: A developer can sign up/sign in, create and publish an endpoint (workflow/app) with policies, and another developer can sign up/sign in, install it, get an API key, and call it via the OpenAI Responses interface.
+- Focus workflow: Screentime vision (Qwen‑VL on RunPod via Portkey OSS), OpenAI Responses-compatible surface.
+
+What’s implemented (dev-ready)
+- Edge Worker (CF + Hono):
+  - `/v1/responses` OpenAI-compatible proxy → Portkey.
+  - Validates AlphaGate API key with main-app; resolves endpoint config; rewrites `model` to provider model; streams with keep‑alive comments.
+  - File: `apps/edge-worker/src/index.ts`. Vars used: `MAIN_APP_URL`, `PORTKEY_GATEWAY_URL`, `PORTKEY_ORG_TOKEN`.
+- Main App (Bun + Hono):
+  - Internal APIs: `POST /internal/auth-key` (API key → org/key), `POST /internal/endpoint-config` (org+endpoint → routing/policies/quotas/schema).
+  - Admin APIs: `GET/POST /admin/keys`, `GET/POST /admin/endpoints`, `POST /admin/endpoints/:id/publish`, `POST /admin/endpoints/:id/install`, `GET /admin/catalog`.
+  - Kysely migrations + runner + seed script. Seed creates a dev org, default API key, Screentime endpoint template.
+  - Files: `apps/main-app/src/routes/*`, `apps/main-app/src/db/migrations/0001-init.ts`, `apps/main-app/src/db/migrate.ts`, `apps/main-app/src/db/seed.ts`.
+- Contracts (Zod):
+  - OpenAI Responses request and streaming event schemas; admin/internal DTOs.
+  - File: `packages/contracts/src/index.ts`.
+- Console (Next.js 15 + React 19):
+  - `/keys`: list + create keys (token returned via API; not persisted in UI).
+  - `/endpoints`: list + create minimal endpoints; publish action.
+  - `/catalog`: list public endpoints; install into org.
+  - Files: `apps/dashboard/app/{keys,endpoints,catalog}/page.tsx`.
+- A11y/Next fixes: Next metadata API; default `type="button"` in shared UI buttons.
+
+Environment & local run (dev)
+1) Database and seed
+   - `cd apps/main-app && bun run db:migrate && bun run db:seed`
+   - Seed output: `apps/main-app/.tmp/seed-output.json` (contains `org_id` and `api_key_token`).
+2) Main App
+   - `cd apps/main-app && bun run dev` (default http://localhost:3001)
+3) Portkey Gateway (OSS)
+   - `npx @portkey-ai/gateway` → gateway `http://localhost:8787/v1`, console `http://localhost:8787/public/`
+   - Configure route to RunPod vLLM OpenAI endpoint for Qwen‑VL; have workspace token available.
+4) Edge Worker (local)
+   - `cd apps/edge-worker`
+   - `wrangler dev --port 8788 \
+      --var MAIN_APP_URL=http://localhost:3001 \
+      --var PORTKEY_GATEWAY_URL=http://localhost:8787 \
+      --var PORTKEY_ORG_TOKEN=<your_portkey_token>`
+5) Console (Next.js)
+   - In `.env`, set:
+     - `NEXT_PUBLIC_MAIN_APP_URL=http://localhost:3001`
+     - `NEXT_PUBLIC_DEFAULT_ORG_ID=<org_id from seed>`
+   - `cd apps/dashboard && bun run dev` (default http://localhost:3000)
+6) E2E call
+   - Use the seeded `api_key_token` as `Authorization: Bearer` when calling `http://localhost:8788/v1/responses`.
+   - Payload shape from `.docs/integration-guide.md` (model: `vision-screencast-evaluator`, multimodal parts). Verify stream + structured JSON.
+
+Remaining for MVP (high priority)
+1) Console (Endpoint wizard polish)
+   - Add fields to paste JSON schema and tweak policy presets (grade band, PII on/off, retention days).
+   - Show last active version and simple status labels (draft/public).
+2) Admin API enhancements
+   - `POST /admin/endpoints/:id/promote` (optional for MVP) to formalize version promotion.
+   - Ensure `install` enforces visibility (allow only public or same‑org installs).
+3) Edge cache + quotas (skeleton acceptable for MVP)
+   - KV read‑through cache for `/internal/endpoint-config` with TTL; invalidate on publish.
+   - Durable Object `QuotaCounters` per (org,key,endpoint) with hourly/day windows; return 429 on exceed (behind a feature flag).
+4) Basic auth (post‑MVP polish, or minimal now)
+   - Wire Better Auth for Console + Admin routes; bootstrap personal org on signup.
+5) Docs & DX
+   - Add a Portkey example config (RunPod vLLM target + retry: 3) and curl examples into README.
+
+Acceptance criteria (MVP)
+- Developer A can create an endpoint (with JSON schema and policies), publish it public, and see it in the Catalog.
+- Developer B can install that endpoint into their org, create an API key, and call `/v1/responses` via the Edge Worker (OpenAI SDK), receiving streamed output and passing schema validation.
+- Edge enforces auth, resolves config, injects SSE keep‑alive, maps endpoint to provider model, and normalizes errors.
+
+Notes
+- BYOK and Stripe billing are out of scope for the MVP; pooled provider keys in Portkey are assumed.
+- Analytics (ClickHouse) is deferred; minimal structured logging exists.

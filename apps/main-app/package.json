@@ -9,10 +9,13 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "lint": "biome check .",
     "test": "vitest run",
+    "db:migrate": "bun run src/db/migrate.ts",
+    "db:seed": "bun run src/db/seed.ts",
     "types:gen:local": "npx --yes supabase gen types typescript --local > src/types/supabase.ts",
     "types:gen:remote": "npx --yes supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > src/types/supabase.ts"
   },
   "dependencies": {
+    "@alphagate/contracts": "workspace:*",
     "@aws-sdk/client-kms": "^3.883.0",
     "@aws-sdk/credential-providers": "^3.883.0",
     "@clickhouse/client": "^1.12.1",

@@ -626,3 +626,48 @@ Docs generation: OpenAPI from Zod; publish API Reference; embed SDK snippets.
 
 
 
+18) MVP Roadmap Update (Sep 2025)
+
+Console (Dashboard)
+- Framework: Next.js 15 (App Router) is the standard for the Console; Hono SSR is not used for the console.
+- Scope: Auth (Better Auth), Endpoint Studio (identity, routing, policies, quotas, JSON schema, prompt, test harness), API Keys, Organization, Catalog (publish/install).
+
+Edge Worker (Cloudflare + Hono)
+- OpenAI Responses surface: `POST /v1/responses` (non-stream + SSE).
+- Auth: validate `Authorization` (API key) via main-app `/internal/auth-key`.
+- Resolve endpoint: header `X-AG-Endpoint` or fallback to `model` in body. Fetch `/internal/endpoint-config` → map to provider target.
+- Caching: KV cache by `org:endpoint:version` with TTL; invalidate on publish.
+- SSE keep-alive: inject comment lines every ~10–20s during provider streams.
+- Quotas: Durable Object counters per (org, key, endpoint) with rolling windows (hour/day/month); enforce 429 on exceed.
+- Error mapping: normalize to `{ code, message, details? }`.
+
+Main App (Bun + Hono)
+- Admin APIs: `/orgs`, `/users`, `/keys` (CRUD+rotate), `/endpoints` (CRUD+version+publish), `/catalog` (list), `/policies`.
+- Internal APIs: `/internal/auth-key` (API key → org/key), `/internal/endpoint-config` (org+endpoint → versioned config).
+- Services: API key hashing/lookup; endpoint versioning (draft→promote); publish/install (clone into consumer org); BYOK storage (encrypted, KMS decrypt only in main app).
+- Validation: all DTOs via Zod; consistent error responses.
+
+Data & Migrations (Kysely)
+- Tables: `organizations`, `users`, `memberships`, `api_keys`, `endpoints`, `endpoint_versions`, `endpoint_models`, `policies`, `audit_log`.
+- Indexes: `api_keys(prefix)`, `endpoints (org_id, name)`, `endpoint_models(endpoint_id, priority)`.
+- Scripts: `bun db:migrate`, `bun db:generate`.
+
+Contracts (Zod + OpenAPI)
+- Define OpenAI Responses request/streaming event types.
+- Define Admin DTOs for keys, endpoints (identity/routing/policies/quotas/schema), publish/install, catalog.
+- Generate typed client for Console consumption.
+
+Providers & Routing
+- Portkey OSS Gateway → RunPod vLLM (Qwen‑VL) as Screentime primary; add provider mapping layer in edge.
+- BYOK: stored encrypted; decrypt only in main app; edge uses pooled key or scoped tokens (later).
+
+Guardrails (Minimal)
+- Clients for Presidio (PII) and Llama Guard (safety) defined; toggle per endpoint; surface flags in logs (analytics later).
+
+Observability (Baseline)
+- Structured request logs with redaction; latency and error summaries; ClickHouse aggregation deferred post‑MVP.
+
+MVP Acceptance
+- Dev A creates and publishes an endpoint with policies and schema in the Console.
+- Dev B installs the public endpoint, creates an API key, and calls `/v1/responses` with the endpoint name as `model` using an OpenAI SDK.
+- Edge authenticates, resolves config, enforces quotas, streams with keep‑alives, and returns structured JSON validating against the schema.

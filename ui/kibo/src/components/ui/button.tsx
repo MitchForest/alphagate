@@ -48,6 +48,8 @@ function Button({
     <Comp
       className={cn(buttonVariants({ variant, size, className }))}
       data-slot="button"
+      // Ensure buttons declare a type; avoid submitting forms unintentionally
+      type={asChild ? undefined : "button"}
       {...props}
     />
   )

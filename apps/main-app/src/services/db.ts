@@ -5,6 +5,7 @@ import { env } from "../config/env"
 import type { DB } from "../types/db"
 
 let dbInstance: Kysely<DB> | null = null
+let sqlClient: ReturnType<typeof postgres> | null = null
 
 export function getDb(): Kysely<DB> {
   if (dbInstance) {
@@ -20,5 +21,17 @@ export function getDb(): Kysely<DB> {
   })
   const dialect = new PostgresJSDialect({ postgres: sql })
   dbInstance = new Kysely<DB>({ dialect })
+  sqlClient = sql
   return dbInstance
+}
+
+export function getSql() {
+  if (!sqlClient) {
+    // ensure getDb() initialized connection
+    getDb()
+  }
+  if (!sqlClient) {
+    throw new Error("Postgres client not initialized")
+  }
+  return sqlClient
 }
