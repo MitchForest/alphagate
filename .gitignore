@@ -22,3 +22,10 @@ coverage/
 .vscode/*.log
 
 # Docs (track .docs for planning)
+
+# Local temp/cache
+.tmp/
+.cache_shadcn/
+
+# Next.js build output
+**/.next/

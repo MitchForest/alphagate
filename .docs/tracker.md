@@ -78,11 +78,15 @@ Initial dependencies (minimal to build/run stubs)
 - [ ] Main App deps: `hono`, `hono/cors`, `zod`.
 - [ ] Dashboard deps: `hono`, `zod`, `tailwindcss` (v4), `@tanstack/react-router` or Hono SSR utilities (if chosen), `react`, `react-dom`.
 - [ ] Contracts deps: `zod`, `openapi-typescript` (dev) or `orval` (dev) for client generation.
-- [ ] DB deps: `kysely`, `pg` (or `postgres` driver), `dotenv` (dev), `drizzle-kit` (optional) if used for migration scaffolding.
+- [x] DB deps: `kysely`, `postgres` + `kysely-postgres-js` (Bun), `dotenv` (dev). Add `kysely-supabase` (dev) for Supabase type bridge.
 - [ ] Guardrails deps: HTTP client (`undici` or fetch), types for Presidio/Llama Guard.
 - [x] UI deps: `tailwindcss` (v4), `clsx`, `@radix-ui/*` (via shadcn), `lucide-react`.
 - [x] shadcn namespace registries: configure namespaces `ui`, `kibo`, `ai` per link.
 - [x] Add `components.json` in each UI package with `namespace`; CLI initialization pending.
+ - [x] Install shadcn components in `ui/ui` via CLI/registry (core, overlay, nav, feedback) and ensure build + lint pass.
+ - [x] Install Kibo UI components in `ui/kibo` (snippet, announcement, banner, pill, marquee, status, theme-switcher, tree) and ensure build + lint pass.
+ - [x] Normalize exports: root package exports for `@alphagate/ui` and `@alphagate/kibo`.
+ - [ ] Finalize Tailwind integration across apps; current dev route serves `ui/ui` CSS in Dashboard (`/styles/ui.css`).
 
 Configuration files
 - [x] Root `turbo.json` with tasks for `build`, `dev`, `lint`, `typecheck`, `test`.
@@ -107,13 +111,15 @@ Acceptance criteria
 
 ---
 
-## Milestone 1 — Edge Proxy MVP (Cloudflare Workers + Hono)
+## Milestone 1 — MVP E2E (Auth → Endpoint Studio → Publish/Consume)
+
+Goal: A developer can sign up/sign in, create and publish an endpoint (workflow/app) with policies, and another developer can sign up/sign in, install it, get an API key, and call it via the OpenAI Responses interface. Prioritize Screentime (vision-screencast-evaluator) using Qwen-VL on Alpha Gate pods (RunPod/vLLM via Portkey OSS gateway).
 
 Foundations
-- [ ] Choose region/route: `/v1/responses` (OpenAI-compatible).
-- [ ] Define request/response types aligned with OpenAI Responses (reuse schemas from `packages/contracts`).
-- [ ] Implement HMAC API key auth: prefix lookup and `secret_hash` compare; org + key resolution.
-- [ ] KV cache for org/endpoint config: key = `org:endpoint:version`.
+- [x] Route: `/v1/responses` (OpenAI-compatible) on edge (Hono @ CF Workers).
+- [ ] Request/response types in `packages/contracts` aligned with OpenAI Responses (for Admin API + UI typing).
+- [ ] HMAC API key auth: prefix lookup + `secret_hash` compare; map to (org, key) in main DB.
+- [ ] Config fetch + cache: edge fetches endpoint config from main app; KV cache key `org:endpoint:version` with TTL; invalidate on publish.
 
 Quota & SSE
 - [ ] Durable Object counters per (org, key, endpoint) with TTL windows.
@@ -121,9 +127,10 @@ Quota & SSE
 - [ ] Keep-alive SSE: send comment lines `:\n` every 10–20s during provider streams.
 
 Routing
-- [ ] Integrate Portkey client; configure regional pin.
-- [ ] Map Alpha Gate request → Portkey → provider; consistent error mapping `{ code, message, details }`.
-- [ ] Emit `usage_event` to Cloudflare Queues on completion.
+- [x] Edge proxy wired to Portkey OSS gateway (env: `PORTKEY_GATEWAY_URL`, `PORTKEY_ORG_TOKEN`).
+- [ ] Endpoint config mapping: model: "{endpointName}" → provider target (e.g., `qwen-vl` on RunPod/vLLM) with failover/policies.
+- [ ] Consistent error mapping `{ code, message, details }`.
+- [ ] (Defer) Emit `usage_event` (queue/ingest) — not required for MVP.
 
 Config & deploy
 - [ ] `wrangler.toml` with KV, DO bindings, Queues.
@@ -131,17 +138,62 @@ Config & deploy
 - [ ] Deploy to Cloudflare and smoke test.
 
 Acceptance
-- [ ] OpenAI SDK request with `baseURL` pointing to Worker returns valid response & supports stream.
+- [ ] Dev A creates endpoint; Dev B installs; Requests to `/v1/responses` stream responses; structured JSON validates.
+
+Auth & Tenancy (Better Auth + Supabase/Kysely)
+- [ ] Better Auth minimal setup (email/password) in `packages/auth` and consume in Dashboard + Main App.
+- [ ] Session cookies configured from env (`AUTH_URL`, `AUTH_SECRET`, secure flags in prod).
+- [ ] Tenancy bootstrap: on first signup create a personal org; store user/org/role.
+
+Console (Dashboard) — Endpoint Studio
+- [ ] Endpoints page: list + create/edit wizard (Identity, Routing, Policies, Quotas, Structured Output JSON schema, Prompt template, Test harness).
+- [ ] API Keys page: create/revoke/rotate; copy snippets.
+- [ ] Organization page: members/roles (basic), org settings (grade band defaults, retention).
+- [ ] Policies page: presets (grade bands, PII redaction toggle, retention days).
+- [ ] Publish toggle: mark endpoint Public; appear in Catalog list.
+- [ ] Catalog: list public endpoints; "Install" clones into consumer org.
+
+Admin API (Main App, Hono)
+- [ ] `/orgs`, `/users` (authn/authz), `/endpoints` (CRUD + publish), `/keys` (CRUD), `/policies` (CRUD).
+- [ ] `/internal/endpoint-config` (edge fetch): resolve (org, endpointName) → config JSON + version.
+- [ ] BYOK store (encrypted in DB; optional for MVP if using pooled RunPod token).
+
+Data Model & Migrations (MVP scope)
+- [ ] Tables & indexes (Kysely migrations): `organizations`, `users`, `memberships`, `api_keys`, `endpoints`, `endpoint_versions`, `endpoint_models`, `policies`, `audit_log`.
+- [ ] Seed: create default policy presets; create Screentime template endpoint.
+
+Screentime (Qwen-VL on Alpha Gate pods)
+- [ ] Deploy/attach Qwen-VL model on RunPod/vLLM (Alpha Gate pod) — configure provider in Portkey gateway.
+- [ ] Endpoint template: `vision-screencast-evaluator` with structured JSON schema (use §6 in integration guide).
+- [ ] Wizard preset for Screentime: prefill routing to Qwen-VL, policies (PII on, retention 24h), JSON schema.
+- [ ] Developer usage snippet/docs: OpenAI Responses example (non-stream + SSE) referencing endpoint name.
+
+Files/Uploads (defer full service)
+- [ ] (Defer) Signed URL upload service; for MVP, accept external URLs or base64 in tests.
+
+Out of scope for this milestone
+- [ ] ClickHouse analytics (defer to later milestone).
+- [ ] Events API ingestion & correlation (optional later).
+
+Backend plumbing
+- [x] Env loader (Zod) in `apps/main-app/src/config/env.ts`.
+- [x] Kysely client with `postgres` + `kysely-postgres-js` (Bun) `apps/main-app/src/services/db.ts`.
+- [x] ClickHouse client (HTTP) `apps/main-app/src/services/clickhouse.ts`.
+- [x] AWS KMS decrypt stub `apps/main-app/src/services/kms.ts`.
+- [x] Better Auth: installed; setup stub added; configure adapter/store next.
+- [ ] Supabase client wiring for non-SQL features (optional now).
+- [x] Install dev: `kysely-supabase` and generate Supabase types.
+- [x] Generate types: `npx supabase gen types typescript --project-id $SUPABASE_PROJECT_ID`.
 
 ---
 
 ## Milestone 2 — Main App Skeleton (Bun + Hono)
 
 APIs & Services
-- [ ] Hono app bootstrap with routes: `/orgs`, `/endpoints`, `/keys`, `/policies`, `/pricing` (stubs returning 200 + types).
+- [ ] Hono routes: `/orgs`, `/users`, `/endpoints`, `/keys`, `/policies`, `/catalog`.
+- [ ] `/internal/endpoint-config` for edge lookup.
 - [ ] BYOK decrypt service interface (AWS KMS stub).
 - [ ] Policy services orchestrator interface (Presidio/Llama Guard clients stubbed).
-- [ ] Queue consumer endpoint for `usage_event` ingestion.
 
 Infra wiring
 - [ ] Config loader (`.env`) and typed config.
@@ -160,31 +212,32 @@ Schema & migrations
 - [ ] Add indexes as per plan.
 
 Connections & codegen
-- [ ] Kysely client factory in `packages/db` with connection pooling.
+- [x] Kysely Bun client in main-app using PostgresJS dialect.
 - [ ] Migration scripts: `bun db:migrate`, `bun db:generate`.
+- [x] Supabase types bridge (`kysely-supabase`) wired in `apps/main-app/src/types/db.ts`.
 
 Acceptance
 - [ ] Migrations apply cleanly to a Supabase instance; types compile.
 
 ---
 
-## Milestone 4 — Dashboard Skeleton (Console)
+## Milestone 4 — Dashboard (Console)
 
 Structure
 - [ ] Choose SSR: Hono SSR (default) or Next.js; document choice.
 - [ ] Tailwind v4 + shadcn/ui base (`ui/ui`), Kibo tables (`ui/kibo`), ai-sdk elements (`ui/ai`).
 
-Pages (stubs)
+Pages
+- [ ] Auth pages: Sign in / Sign up (Better Auth)
 - [ ] Overview
-- [ ] Endpoints (wizard + playground shell)
+- [ ] Endpoints (wizard + playground with image+JSON sample)
 - [ ] API Keys
-- [ ] Usage
-- [ ] Logs (basic)
 - [ ] Organization
 - [ ] Policies (presets)
+- [ ] Catalog (browse/install)
 
 Auth
-- [ ] Better Auth wired to Supabase via `packages/auth`.
+- [ ] Better Auth wired; sessions; protected routes; org context switcher.
 
 Acceptance
 - [ ] Can navigate between stubs; basic state flows work.

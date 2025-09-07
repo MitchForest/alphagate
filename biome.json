@@ -21,6 +21,25 @@
           "style": { "noMagicNumbers": "off" }
         }
       }
+    },
+    {
+      "includes": ["ui/**/src/**/*.ts", "ui/**/src/**/*.tsx"],
+      "linter": {
+        "rules": {
+          "performance": { "noNamespaceImport": "off", "noBarrelFile": "off" },
+          "nursery": { "useSortedClasses": "off" },
+          "style": { "noMagicNumbers": "off" },
+          "suspicious": { "noEmptyBlockStatements": "off" }
+        }
+      }
+    },
+    {
+      "includes": ["ui/**/src/**/*.css"],
+      "linter": {
+        "rules": {
+          "suspicious": { "noUnknownAtRules": "off" }
+        }
+      }
     }
   ],
   "javascript": {

@@ -12,7 +12,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "kysely": "^0.27.4"
+    "kysely": "^0.28.5"
   },
   "devDependencies": {
     "typescript": "^5.5.4"
